@@ -1,0 +1,24 @@
+name "pretty_array"
+description "Pretty D Arrays"
+authors "tastyminerals"
+dependency "mir-algorithm" version="~>3.8.12"
+
+targetType "executable"
+dflags-ldc "-mcpu=native"
+
+buildType "release" {
+    buildOptions "releaseMode" "inline" "optimize"
+    dflags "-boundscheck=off"
+}
+
+buildType "debug" {
+    buildOptions "debugMode" "debugInfo" "optimize"
+}
+
+buildType "debug-profile" {
+    buildOptions "debugMode" "debugInfo" "profile"
+}
+
+buildType "tests" {
+    buildOptions "unittests"
+}

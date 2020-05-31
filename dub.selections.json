@@ -1,0 +1,7 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"mir-algorithm": "3.8.13",
+		"mir-core": "1.1.6"
+	}
+}
