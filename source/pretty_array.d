@@ -1,5 +1,8 @@
 /**
-    module docstring goes here
+This module provides a function for pretty-printing D arrays of various dimensions.
+A multidimensional array is represented as a 2D matrix surrounded by nested square frames.
+If the array is too big, it will be truncated accordingly.
+The surrounding frame, and the truncation symbol can be changed as well as truncation options.
 */
 module pretty_array;
 
@@ -9,7 +12,20 @@ import std.utf : byCodeUnit;
 import std.typecons : tuple, Tuple;
 import mir.ndslice;
 
-import std.stdio;
+/// TODO: a placeholder string for NaNs
+enum NAN = "nan";
+/// TODO: a placeholder string for Infs
+enum INF = "inf";
+
+/// pretty_array formatting configuration.
+private enum Format : int
+{
+    edgeitems = 3, // sets N leading and trailing items for each dimension
+    threshold = 300, // max N array elements allowed without truncation
+    precision = 8, // TODO: precision of floating point representations
+    suppressExp = 0, // TODO: suppress printing small floating values in exp format
+    lineWidth = 120
+}
 
 private enum Frame : string
 {
@@ -21,24 +37,26 @@ private enum Frame : string
     newline = "\n",
     dash = "─",
     dot = "·",
-    space = " "
+    space = " ",
+    truncStr = "░" // TIP: length of this string is 3!
 }
 
-size_t[] getShape(T : int)(T obj, size_t[] dims = null)
+ulong[] getShape(T : int)(T obj, ulong[] dims = null)
 {
     return dims;
 }
 
-size_t[] getShape(T : double)(T obj, size_t[] dims = null)
+ulong[] getShape(T : double)(T obj, ulong[] dims = null)
 {
     return dims;
 }
 
 /++
-Get the shape of a D array.
+Get the shape of a plain D array.
+A standalone convenience function for getting array shape without converting to Mir Slices.
 The array must have correct dimensions otherwise the column index will not be consistent.
 +/
-size_t[] getShape(T)(T obj, size_t[] dims = null)
+ulong[] getShape(T)(T obj, ulong[] dims = null)
 in
 {
     import std.traits : isArray;
@@ -51,89 +69,181 @@ do
     return getShape!(typeof(obj[0]))(obj[0], dims);
 }
 
+// Calculate the length of array elements converted to strings.
+private ulong getStrLength(T)(T arrSlice)
+{
+    if (arrSlice.shape.length == 1)
+    {
+        return arrSlice.map!(a => a.to!string).join.length;
+    }
+    else
+    {
+        auto slice2D = arrSlice.flattened.chunks(arrSlice.shape[$ - 1]);
+        return slice2D[0].map!(a => a.to!string).join.length;
+    }
+}
+
+// Convert truncated index to real array index.
+private ulong convertTruncIdx(ulong idx, ulong truncLen, ulong rowLen)
+{
+    pragma(inline, true);
+    return idx > Format.edgeitems ? rowLen - (truncLen - idx) : idx;
+}
+
 /++
 Get the longest string length of a row, construct a row with the longest string elements.
 We need to know the longest string length of the row to calculate the correct padding between the frames.
 We need to keep the row with longest string elements to correctly right-align all array elements.
 +/
-private Tuple!(size_t, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrSlice)
+private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrSlice, bool truncate)
 {
+
     auto slice2D = arrSlice.flattened.chunks(arrSlice.shape[$ - 1]);
-    size_t maxStrRowLen;
+    const ulong truncLen = Format.edgeitems * 2 + 1;
+    const bool enoughRows = slice2D.shape[0] > truncLen;
+    const bool encoughCols = slice2D[0].length > truncLen;
+    ulong maxStrRowLen;
     string[] row, maxRow;
 
     // fill the empty array with the number of row elements
-    for (int i; i < slice2D[0].length; i++)
+    // there probably a better way to do it
+    for (int i; i < (truncate && encoughCols ? truncLen : slice2D[0].length); i++)
     {
         maxRow ~= "0";
+        row ~= "";
     }
 
-    // construct the row with longest string elements
-    for (int i; i < slice2D.shape[0]; i++)
+    // construct a row with longest string elements
+    ulong rowi, colj;
+    for (ulong i; i < (truncate && enoughRows ? truncLen : slice2D.shape[0]); i++)
     {
-        row = slice2D[i].map!(a => a.to!string).array;
-        for (int j; j < slice2D[i].length; j++)
+        rowi = truncate && enoughRows ? convertTruncIdx(i, truncLen, slice2D.shape[0]) : i;
+        for (ulong j; j < (truncate && encoughCols ? truncLen : slice2D[rowi].length);
+                j++)
         {
-            maxRow[j] = maxRow[j].length < row[j].length ? row[j] : maxRow[j];
+            colj = truncate && encoughCols ? convertTruncIdx(j, truncLen, slice2D[i].length) : j;
+            row[j] = slice2D[rowi][colj].to!string;
+        }
+
+        for (ulong k; k < row.length; k++)
+        {
+            if (truncate && encoughCols && (k == Format.edgeitems))
+            {
+                maxRow[k] = Frame.truncStr;
+                continue;
+            }
+            maxRow[k] = maxRow[k].length < row[k].length ? row[k] : maxRow[k];
         }
     }
-    maxStrRowLen = maxRow.join.length + slice2D[0].length - 1;
-    return Tuple!(size_t, "strlen", string[], "row")(maxStrRowLen, maxRow);
+    maxStrRowLen = truncate && encoughCols
+        ? maxRow.join.length + truncLen - 3 : maxRow.join.length + slice2D[0].length - 1; // -3 because Frame.truncStr.length == 3
+    return Tuple!(ulong, "strlen", string[], "row")(maxStrRowLen, maxRow);
 }
 
 /++
 Construct the padding between frame angles.
 Use white space if padding string is not provided.
 +/
-private string getPadding(T)(T arrShape, size_t maxStrRowLen, string padStr = Frame.space)
+private string getPadding(T)(T arrShape, ulong maxStrRowLen, string padStr = Frame.space)
 {
     return padStr.byCodeUnit.repeat((arrShape.length < 2
             ? 0 : arrShape.length - 2) * 2 + maxStrRowLen).join;
 }
 
-private size_t lenDiff()(string a, string b)
+private ulong lenDiff()(string a, string b)
 {
     return a.length > b.length ? a.length - b.length : 0;
 }
 
-private string prettyFrame(T)(T arrSlice) if (arrSlice.shape.length == 1)
+private string prettyFrame(T)(T arrSlice, bool truncate)
+        if (arrSlice.shape.length == 1)
 {
-    return Frame.vBar ~ arrSlice.map!(a => a.to!string).join(" ") ~ Frame.vBar ~ Frame.newline;
+    if (truncate)
+    {
+        string[] leftSlice = arrSlice[0 .. Format.edgeitems].map!(a => a.to!string).array;
+        string[] rightSlice = arrSlice[$ - Format.edgeitems .. $].map!(a => a.to!string).array;
+        return Frame.vBar ~ (leftSlice ~ Frame.truncStr ~ rightSlice)
+            .join(" ") ~ Frame.vBar ~ Frame.newline;
+    }
+    else
+    {
+
+        return Frame.vBar ~ arrSlice.map!(a => a.to!string).join(" ") ~ Frame.vBar ~ Frame.newline;
+    }
+
 }
 
-private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(size_t,
-        "strlen", string[], "row") maxRow) if (arrSlice.shape.length == 2)
+private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
+        "strlen", string[], "row") maxRow, bool truncate)
+        if (arrSlice.shape.length == 2)
 {
     string arrStr;
-    for (int i; i < arrSlice.shape[0]; i++)
+    ulong rowi, colj;
+    const ulong truncLen = Format.edgeitems * 2 + 1;
+    const bool enoughRows = arrSlice.shape[0] > truncLen;
+    const bool enoughCols = arrSlice.shape[1] > truncLen;
+
+    for (ulong i; i < (truncate && enoughRows ? truncLen : arrSlice.shape[0]); i++)
     {
         string[] newRow;
-        for (int j; j < arrSlice[i].length; j++)
+        rowi = truncate && enoughRows ? convertTruncIdx(i, truncLen, arrSlice.length) : i;
+        for (ulong j; j < (truncate && enoughCols ? truncLen : arrSlice[rowi].length);
+                j++)
         {
+            colj = truncate && enoughCols ? convertTruncIdx(j, truncLen, arrSlice[i].length) : j;
             // insert white spaces before the element to right align it
             newRow ~= " ".repeat(lenDiff(maxRow.row[j],
-                    arrSlice[i][j].to!string)).join ~ arrSlice[i][j].to!string;
+                    arrSlice[rowi][colj].to!string)).join ~ arrSlice[rowi][colj].to!string;
+
+            if (truncate && enoughCols && (j == Format.edgeitems))
+            {
+                newRow[$ - 1] = Frame.truncStr; // overwrite last with truncation string
+            }
         }
-        arrStr ~= addedFrame ~ newRow.join(" ") ~ addedFrame ~ Frame.newline;
+
+        if (truncate && enoughRows)
+        {
+            if (i != Format.edgeitems)
+                arrStr ~= addedFrame ~ newRow.join(" ") ~ addedFrame ~ Frame.newline;
+            else
+                arrStr ~= addedFrame ~ (cast(string) Frame.truncStr)
+                    .repeat(maxRow.strlen).join ~ addedFrame ~ Frame.newline;
+        }
+        else
+        {
+            arrStr ~= addedFrame ~ newRow.join(" ") ~ addedFrame ~ Frame.newline;
+        }
     }
     return arrStr;
 }
 
-private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(size_t,
-        "strlen", string[], "row") maxRow) if (arrSlice.shape.length > 2)
+private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
+        "strlen", string[], "row") maxRow, bool truncate)
+        if (arrSlice.shape.length > 2)
 {
     string arrStr;
-    for (int i; i < arrSlice.shape[0]; i++)
+    for (ulong i; i < arrSlice.shape[0]; i++)
     {
         string padding = getPadding!(typeof(arrSlice[i].shape))(arrSlice[i].shape, maxRow.strlen);
         arrStr ~= addedFrame ~ Frame.ltAngle ~ padding ~ Frame.rtAngle ~ addedFrame ~ Frame.newline;
-        arrStr ~= prettyFrame!(typeof(arrSlice[i]))(arrSlice[i], addedFrame ~ Frame.vBar, maxRow);
+        arrStr ~= prettyFrame!(typeof(arrSlice[i]))(arrSlice[i],
+                addedFrame ~ Frame.vBar, maxRow, truncate);
         arrStr ~= addedFrame ~ Frame.lbAngle ~ padding ~ Frame.rbAngle ~ addedFrame ~ Frame.newline;
     }
+
     return arrStr;
 }
 
-// N-D array
+// Check if an array can be truncated.
+private bool canTruncate(T)(T arrSlice)
+{
+    return (arrSlice.flattened.length > Format.threshold) || ((arrSlice.shape.length == 1)
+            && (arrSlice.getStrLength > Format.lineWidth)) ? true : false;
+}
+
+/++
+Pretty-print D array.
++/
 string prettyArr(T)(T arr)
 in
 {
@@ -143,20 +253,19 @@ do
 {
     string arrStr;
     auto arrSlice = arr.fuse; // convert to Mir Slice by GC allocating with fuse
-    bool truncate = arrSlice.flattened.length > 300 ? true : false; // check if we need array truncation
-    auto maxRow = arrSlice.getMaxStrLenAndMaxRow;
+    // check if we need array truncation
+    const bool truncate = arrSlice.canTruncate;
+    auto maxRow = arrSlice.getMaxStrLenAndMaxRow(truncate);
     string padding = getPadding!(typeof(arrSlice.shape))(arrSlice.shape, maxRow.strlen);
-
     arrStr ~= Frame.ltAngle ~ padding ~ Frame.rtAngle ~ Frame.newline;
     static if (arrSlice.shape.length > 1)
     {
-        arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, Frame.vBar, maxRow);
+        arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, Frame.vBar, maxRow, truncate);
     }
     else
     {
-        arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice);
+        arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, truncate);
     }
-
     arrStr ~= Frame.lbAngle ~ padding ~ Frame.rbAngle ~ Frame.newline;
     return arrStr;
 }
@@ -164,6 +273,8 @@ do
 unittest
 {
     import std.range : chunks;
+
+    // TODO: getShape tests
 
     int[] a0 = [200, 1, -3, 0, 0, 8501, 23];
     string testa0 = "┌                    ┐
@@ -173,7 +284,7 @@ unittest
     assert(prettyArr!(typeof(a0))(a0) == testa0);
 
     auto a = [5, 2].iota!int(1).fuse;
-    auto maxa = a.getMaxStrLenAndMaxRow;
+    auto maxa = a.getMaxStrLenAndMaxRow(a.canTruncate);
     assert(getPadding!(typeof(a.shape))(a.shape, maxa.strlen).length == 4);
     string testa = "┌    ┐
 │1  2│
@@ -186,7 +297,7 @@ unittest
     assert(prettyArr!(typeof(a))(a) == testa);
 
     auto b = [2, 2, 6].iota!int(1).fuse;
-    auto maxb = b.getMaxStrLenAndMaxRow;
+    auto maxb = b.getMaxStrLenAndMaxRow(b.canTruncate);
     assert(getPadding!(typeof(b.shape))(b.shape, maxb.strlen).length == 19);
     string testb = "┌                   ┐
 │┌                 ┐│
@@ -246,85 +357,117 @@ unittest
 └     ┘
 ";
     assert(prettyArr!(typeof(d))(d) == testd);
+
+    auto e = [2, 3, 6, 6].iota!int(1).fuse;
+    string teste = "┌                           ┐
+│┌                         ┐│
+││┌                       ┐││
+│││  1   2   3   4   5   6│││
+│││  7   8   9  10  11  12│││
+│││ 13  14  15  16  17  18│││
+│││ 19  20  21  22  23  24│││
+│││ 25  26  27  28  29  30│││
+│││ 31  32  33  34  35  36│││
+││└                       ┘││
+││┌                       ┐││
+│││ 37  38  39  40  41  42│││
+│││ 43  44  45  46  47  48│││
+│││ 49  50  51  52  53  54│││
+│││ 55  56  57  58  59  60│││
+│││ 61  62  63  64  65  66│││
+│││ 67  68  69  70  71  72│││
+││└                       ┘││
+││┌                       ┐││
+│││ 73  74  75  76  77  78│││
+│││ 79  80  81  82  83  84│││
+│││ 85  86  87  88  89  90│││
+│││ 91  92  93  94  95  96│││
+│││ 97  98  99 100 101 102│││
+│││103 104 105 106 107 108│││
+││└                       ┘││
+│└                         ┘│
+│┌                         ┐│
+││┌                       ┐││
+│││109 110 111 112 113 114│││
+│││115 116 117 118 119 120│││
+│││121 122 123 124 125 126│││
+│││127 128 129 130 131 132│││
+│││133 134 135 136 137 138│││
+│││139 140 141 142 143 144│││
+││└                       ┘││
+││┌                       ┐││
+│││145 146 147 148 149 150│││
+│││151 152 153 154 155 156│││
+│││157 158 159 160 161 162│││
+│││163 164 165 166 167 168│││
+│││169 170 171 172 173 174│││
+│││175 176 177 178 179 180│││
+││└                       ┘││
+││┌                       ┐││
+│││181 182 183 184 185 186│││
+│││187 188 189 190 191 192│││
+│││193 194 195 196 197 198│││
+│││199 200 201 202 203 204│││
+│││205 206 207 208 209 210│││
+│││211 212 213 214 215 216│││
+││└                       ┘││
+│└                         ┘│
+└                           ┘
+";
+    assert(e.prettyArr == teste);
+
+    auto f = [100, 5].iota!int(1).fuse;
+    string testf = "┌                   ┐
+│  1   2   3   4   5│
+│  6   7   8   9  10│
+│ 11  12  13  14  15│
+│░░░░░░░░░░░░░░░░░░░│
+│486 487 488 489 490│
+│491 492 493 494 495│
+│496 497 498 499 500│
+└                   ┘
+";
+
+    auto g = [100, 100].iota!int(1).fuse;
+    string testg = "┌                                ┐
+│   1    2    3 ░   98   99   100│
+│ 101  102  103 ░  198  199   200│
+│ 201  202  203 ░  298  299   300│
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+│9701 9702 9703 ░ 9798 9799  9800│
+│9801 9802 9803 ░ 9898 9899  9900│
+│9901 9902 9903 ░ 9998 9999 10000│
+└                                ┘
+";
+
+    auto h = [500].iota!int(1).fuse;
+    string testh = "┌                   ┐
+│1 2 3 ░ 498 499 500│
+└                   ┘
+";
+    assert(h.prettyArr == testh);
+
+    auto i = [2, 100, 500].iota!int(1).fuse;
+    string testi = "┌                                        ┐
+│┌                                      ┐│
+││    1     2     3 ░   498   499    500││
+││  501   502   503 ░   998   999   1000││
+││ 1001  1002  1003 ░  1498  1499   1500││
+││░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░││
+││48501 48502 48503 ░ 48998 48999  49000││
+││49001 49002 49003 ░ 49498 49499  49500││
+││49501 49502 49503 ░ 49998 49999  50000││
+│└                                      ┘│
+│┌                                      ┐│
+││50001 50002 50003 ░ 50498 50499  50500││
+││50501 50502 50503 ░ 50998 50999  51000││
+││51001 51002 51003 ░ 51498 51499  51500││
+││░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░││
+││98501 98502 98503 ░ 98998 98999  99000││
+││99001 99002 99003 ░ 99498 99499  99500││
+││99501 99502 99503 ░ 99998 99999 100000││
+│└                                      ┘│
+└                                        ┘
+";
+
 }
-
-/*
-
-░
-▒
-▓
-···
-…
-
-
-│┌                   ┐│
-││ 1  2  3 ░  4  5  6││
-││ 7  8  9 ░ 10 11 12││
-││░ ░ ░ ░ ░ ░ ░ ░ ░ ░││
-││13 14 15 ░ 16 17 18││
-││19 20 21 ░ 22 23 24││
-│└                   ┘│
-│┌                   ┐│
-││ 1  2  3 ░  4  5  6││
-││ 7  8  9 ░ 10 11 12││
-││░░░░░░░░░░░░░░░░░░░││
-││13 14 15 ░ 16 17 18││
-││19 20 21 ░ 22 23 24││
-│└                   ┘│
-
-│┌                   ┐│
-││ 1  2  3 ·  4  5  6││
-││ 7  8  9 · 10 11 12││
-││···················││
-││13 14 15 · 16 17 18││
-││19 20 21 · 22 23 24││
-│└                   ┘│
-
-
-
-In [26]: a = np.random.randint(0, 10, [300, 300])
-In [27]: a
-Out[27]:
-array([[6, 0, 1, ..., 9, 6, 9],
-       [4, 9, 0, ..., 6, 3, 6],
-       [7, 5, 9, ..., 1, 0, 0],
-       ...,
-       [5, 4, 6, ..., 6, 1, 3],
-       [9, 6, 9, ..., 1, 4, 1],
-       [9, 4, 4, ..., 3, 4, 0]])
-
-In [11]: a = np.random.randint(0, 100, [800, 2])
-
-In [12]: a
-Out[12]:
-array([[70, 94],
-       [47, 68],
-       [96, 55],
-       ...,
-       [71, 22],
-       [40, 95],
-       [85, 65]])
-
-
-In [13]: a = np.random.randint(0, 100, [2, 800, 2])
-
-In [14]: a
-Out[14]:
-array([[[73, 93],
-        [38, 47],
-        [12, 27],
-        ...,
-        [55, 39],
-        [70, 24],
-        [39, 76]],
-
-       [[76, 48],
-        [71, 19],
-        [ 6, 62],
-        ...,
-        [55, 16],
-        [32, 93],
-        [69, 35]]])
-
-
-*/
