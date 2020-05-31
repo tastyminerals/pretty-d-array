@@ -49,7 +49,7 @@ void main() {
 }
 ```
 
-Use `prettyArr` function to restructure your array into a pretty string representation.
+Use `prettyArr` function to restructure your array.
 
 ```
 ┌                              ┐
@@ -86,7 +86,7 @@ will truncate the array into the following
 └                                           ┘
 ```
 
-You can configure the truncation parameters in the source code.
+You can configure the truncation parameters and the actual frame symbols in the source code.
 
 ### TODO
 * Representation of "nan" and "inf" elements.
