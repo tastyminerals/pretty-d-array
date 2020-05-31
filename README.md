@@ -66,12 +66,13 @@ Use `prettyArr` function to restructure your array into a pretty string represen
 
 Sometimes, you don't need to see complete array but just visualize its structure.
 `prettyArr` truncates big enough arrays to save screen space.
-You can configure the truncation parameters in the source code.
 
 ```d
 auto bigArr = [300, 600].iota.int!(1).fuze;
 bigArr.prettyArr.writeln;
 ```
+
+will truncate the array into the following
 
 ```
 ┌                                           ┐
@@ -84,6 +85,8 @@ bigArr.prettyArr.writeln;
 │179401 179402 179403 ░ 179998 179999 180000│
 └                                           ┘
 ```
+
+You can configure the truncation parameters in the source code.
 
 ### TODO
 * Representation of "nan" and "inf" elements.
