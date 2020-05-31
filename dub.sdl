@@ -3,7 +3,7 @@ description "Pretty D Arrays"
 authors "tastyminerals"
 dependency "mir-algorithm" version="~>3.8.12"
 
-targetType "executable"
+targetType "library"
 dflags-ldc "-mcpu=native"
 
 buildType "release" {
