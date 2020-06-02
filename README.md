@@ -1,5 +1,6 @@
 # pretty_d_array
 Pretty printing multidimensional D arrays.
+This small package uses awesome [mir-algorithm](https://github.com/libmir/mir-algorithm) library as a dependency.
 
 Simply put, it is a small dub package that turns your D arrays from this:
 
