@@ -1,4 +1,4 @@
-# pretty_d_array
+# pretty-d-array
 Pretty printing multidimensional D arrays.
 This small package uses awesome [mir-algorithm](https://github.com/libmir/mir-algorithm) library as a dependency.
 
