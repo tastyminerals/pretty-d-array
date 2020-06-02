@@ -2,6 +2,7 @@ name "pretty_array"
 description "Pretty D Arrays"
 authors "tastyminerals"
 dependency "mir-algorithm" version="~>3.8.12"
+license "MIT"
 
 targetType "library"
 dflags-ldc "-mcpu=native"
