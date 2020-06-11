@@ -176,8 +176,8 @@ private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrS
             maxRow[k] = maxRow[k].length < row[k].length ? row[k] : maxRow[k];
         }
     }
-    maxStrRowLen = truncate && encoughCols
-        ? maxRow.join.length + truncLen - 3 : maxRow.join.length + slice2D[0].length - 1; // -3 because Frame.truncStr.length == 3
+    maxStrRowLen = truncate && encoughCols ? maxRow.join.length + truncLen - Frame.truncStr.length
+        : maxRow.join.length + slice2D[0].length - 1;
     return Tuple!(ulong, "strlen", string[], "row")(maxStrRowLen, maxRow);
 }
 

@@ -154,5 +154,3 @@ private enum Frame : string
     truncStr = "░" // TIP: length of this string is 3!
 }
 ```
-
-However, keep in mind that you'll have to modify `truncLen - 3` in `getMaxStrLenAndMaxRow` template by setting `-3` modifier to the length of your new truncation symbol.
