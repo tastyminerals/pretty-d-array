@@ -1,5 +1,7 @@
-# pretty\_array
+# pretty\_d\_array
+
 Pretty printing multidimensional D arrays.
+
 This small package uses awesome [mir-algorithm](https://github.com/libmir/mir-algorithm) library as a dependency.
 
 Simply put, it is a small dub package that turns your D arrays from this:
@@ -50,8 +52,6 @@ void main() {
 }
 ```
 
-Use `prettyArr` function to restructure your array.
-
 ```
 ┌                              ┐
 │┌                            ┐│
@@ -65,15 +65,14 @@ Use `prettyArr` function to restructure your array.
 └                              ┘
 ```
 
-Sometimes, you don't need to see complete array but just visualize its structure.
-`prettyArr` truncates big enough arrays to save screen space.
+`prettyArr` also **truncates** big enough arrays to save screen space. You can configure max number of elements allowed before truncation.
 
 ```d
 auto bigArr = [300, 600].iota.int!(1).fuze;
 bigArr.prettyArr.writeln;
 ```
 
-will truncate the array into the following
+Will truncate the array into the following.
 
 ```
 ┌                                           ┐
@@ -87,10 +86,73 @@ will truncate the array into the following
 └                                           ┘
 ```
 
-You can configure the truncation parameters and the actual frame symbols in the source code.
+`pretty_array` package contains
 
-### TODO
-* Representation of "nan" and "inf" elements.
-* Floating point truncation.
-* Small floating point numbers suppression.
-* Expose configuration to the outside.
+* `prettyArr` -- a function that converts an array into a pretty string.
+* `PrettyArrConfig` -- array formatting configuration.
+
+## Formatting Configuration
+
+You can configure some of the default formatting parameters via `PrettyArrConfig`.
+
+* `edgeItems` -- number of items preceding and following the truncation symbol (defaults to 3).
+* `lineWidth` -- max line width allowed without truncation (defaults to 120).
+* `precision` -- precision of floating point representations (defaults to 6).
+* `suppressExp` -- suppress scientific notation (defaults to true).
+* `threshold` -- max array size allowed without truncation (default is 1000 elements).
+
+Here are couple of usage examples.
+
+```d
+auto a = [[0.000023, 1.234023, 13.443333], [479.311231, -100.001001, -0.412223]];
+PrettyArrConfig.precision = 2;
+a.prettyArr.writeln;
+```
+
+Will reduce the default **floating precision** from 6 to 2.
+
+```
+┌                    ┐
+│  0.00    1.23 13.44│
+│479.31 -100.00 -0.41│
+└                    ┘
+```
+
+You can also enable **scientific notation** via _e_ suffix.
+
+```d
+auto a = [[0.000023, 1.234023, 13.443333], [479.311231, -100.001001, -0.412223]];
+PrettyArrConfig.suppressExp = false;
+a.prettyArr.writeln;
+```
+
+```
+┌                                        ┐
+│2.300000e-05  1.234023e+00  1.344333e+01│
+│4.793112e+02 -1.000010e+02 -4.122230e-01│
+└                                        ┘
+```
+
+### Configuring Special Symbols
+
+If for some reason you don't like the awesome truncation symbol `░`, or pretty array frames, you can always edit them in the source code.
+
+Search `pretty_array.d` for
+
+```d
+private enum Frame : string
+{
+    ltAngle = "┌",
+    lbAngle = "└",
+    rtAngle = "┐",
+    rbAngle = "┘",
+    vBar = "│",
+    newline = "\n",
+    dash = "─",
+    dot = "·",
+    space = " ",
+    truncStr = "░" // TIP: length of this string is 3!
+}
+```
+
+However, keep in mind that you'll have to modify `truncLen - 3` in `getMaxStrLenAndMaxRow` template by setting `-3` modifier to the length of your new truncation symbol.

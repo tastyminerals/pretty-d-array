@@ -2,7 +2,26 @@
 This module provides a function for pretty-printing D arrays of various dimensions.
 A multidimensional array is represented as a 2D matrix surrounded by nested square frames.
 If the array is too big, it will be truncated accordingly.
-The surrounding frame, and the truncation symbol can be changed as well as truncation options.
+Array formatting can be configured by changing configuration parameters.
+
+Usage examples:
+    import pretty_array;
+    import std.stdio;
+
+    int[][] a = [[10, 5, -3], [34, -1, 0]];
+    a.prettyArr.writeln;
+
+    import mir.ndslice;
+    auto b = [2, 2, 3].iota!int.fuse;
+    b.prettyArr.writeln;
+
+    auto c = [
+        [0.000023, 1.234023, 13.443333],
+        [479.311231, -100.001001, -0.412223]
+    ];
+    PrettyArrConfig.precision = 2;
+    PrettyArrConfig.suppressExp = false;
+    c.prettyArr.writeln;
 */
 module pretty_array;
 
@@ -10,21 +29,27 @@ import std.array : join, array;
 import std.conv : to;
 import std.utf : byCodeUnit;
 import std.typecons : tuple, Tuple;
+import std.traits : isIntegral;
 import mir.ndslice;
 
-/// TODO: a placeholder string for NaNs
-enum NAN = "nan";
-/// TODO: a placeholder string for Infs
-enum INF = "inf";
+/++
+Array formatting configuration:
 
-/// pretty_array formatting configuration.
-private enum Format : int
+    edgeItems -- number of items preceding and following the truncation symbol (defaults to 3)
+    lineWidth -- max line width allowed without truncation (defaults to 120)
+    precision -- precision of floating point representations (defaults to 6)
+    suppressExp -- suppress scientific notation (defaults to true)
+    threshold -- max array size allowed without truncation (defaults to 1000 elements)
+
++/
+class PrettyArrConfig
 {
-    edgeitems = 3, // sets N leading and trailing items for each dimension
-    threshold = 300, // max N array elements allowed without truncation
-    precision = 8, // TODO: precision of floating point representations
-    suppressExp = 0, // TODO: suppress printing small floating values in exp format
-    lineWidth = 120
+    static:
+        int edgeItems = 3;
+        int lineWidth = 120;
+        int precision = 6;
+        bool suppressExp = true;
+        int threshold = 1000;
 }
 
 private enum Frame : string
@@ -74,12 +99,28 @@ private ulong getStrLength(T)(T arrSlice)
 {
     if (arrSlice.shape.length == 1)
     {
-        return arrSlice.map!(a => a.to!string).join.length;
+        return arrSlice.map!(a => a.toString).join.length;
     }
     else
     {
         auto slice2D = arrSlice.flattened.chunks(arrSlice.shape[$ - 1]);
-        return slice2D[0].map!(a => a.to!string).join.length;
+        return slice2D[0].map!(a => a.toString).join.length;
+    }
+}
+
+private string toString(T)(T obj)
+{
+    import std.format : format;
+    import std.traits : isIntegral;
+
+    if (isIntegral!T)
+    {
+        return obj.to!string;
+    }
+    else
+    {
+        string notation = PrettyArrConfig.suppressExp ? "f" : "e";
+        return format("%." ~ (cast(int)(PrettyArrConfig.precision)).to!string ~ notation, obj);
     }
 }
 
@@ -87,7 +128,7 @@ private ulong getStrLength(T)(T arrSlice)
 private ulong convertTruncIdx(ulong idx, ulong truncLen, ulong rowLen)
 {
     pragma(inline, true);
-    return idx > Format.edgeitems ? rowLen - (truncLen - idx) : idx;
+    return idx > PrettyArrConfig.edgeItems ? rowLen - (truncLen - idx) : idx;
 }
 
 /++
@@ -99,7 +140,7 @@ private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrS
 {
 
     auto slice2D = arrSlice.flattened.chunks(arrSlice.shape[$ - 1]);
-    const ulong truncLen = Format.edgeitems * 2 + 1;
+    const ulong truncLen = PrettyArrConfig.edgeItems * 2 + 1;
     const bool enoughRows = slice2D.shape[0] > truncLen;
     const bool encoughCols = slice2D[0].length > truncLen;
     ulong maxStrRowLen;
@@ -122,12 +163,12 @@ private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrS
                 j++)
         {
             colj = truncate && encoughCols ? convertTruncIdx(j, truncLen, slice2D[i].length) : j;
-            row[j] = slice2D[rowi][colj].to!string;
+            row[j] = slice2D[rowi][colj].toString;
         }
 
         for (ulong k; k < row.length; k++)
         {
-            if (truncate && encoughCols && (k == Format.edgeitems))
+            if (truncate && encoughCols && (k == PrettyArrConfig.edgeItems))
             {
                 maxRow[k] = Frame.truncStr;
                 continue;
@@ -160,15 +201,16 @@ private string prettyFrame(T)(T arrSlice, bool truncate)
 {
     if (truncate)
     {
-        string[] leftSlice = arrSlice[0 .. Format.edgeitems].map!(a => a.to!string).array;
-        string[] rightSlice = arrSlice[$ - Format.edgeitems .. $].map!(a => a.to!string).array;
+        string[] leftSlice = arrSlice[0 .. PrettyArrConfig.edgeItems].map!(a => a.toString).array;
+        string[] rightSlice = arrSlice[$ - PrettyArrConfig.edgeItems .. $].map!(
+                a => a.toString).array;
         return Frame.vBar ~ (leftSlice ~ Frame.truncStr ~ rightSlice)
             .join(" ") ~ Frame.vBar ~ Frame.newline;
     }
     else
     {
 
-        return Frame.vBar ~ arrSlice.map!(a => a.to!string).join(" ") ~ Frame.vBar ~ Frame.newline;
+        return Frame.vBar ~ arrSlice.map!(a => a.toString).join(" ") ~ Frame.vBar ~ Frame.newline;
     }
 
 }
@@ -179,7 +221,7 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
 {
     string arrStr;
     ulong rowi, colj;
-    const ulong truncLen = Format.edgeitems * 2 + 1;
+    const ulong truncLen = PrettyArrConfig.edgeItems * 2 + 1;
     const bool enoughRows = arrSlice.shape[0] > truncLen;
     const bool enoughCols = arrSlice.shape[1] > truncLen;
 
@@ -193,9 +235,9 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
             colj = truncate && enoughCols ? convertTruncIdx(j, truncLen, arrSlice[i].length) : j;
             // insert white spaces before the element to right align it
             newRow ~= " ".repeat(lenDiff(maxRow.row[j],
-                    arrSlice[rowi][colj].to!string)).join ~ arrSlice[rowi][colj].to!string;
+                    arrSlice[rowi][colj].toString)).join ~ arrSlice[rowi][colj].toString;
 
-            if (truncate && enoughCols && (j == Format.edgeitems))
+            if (truncate && enoughCols && (j == PrettyArrConfig.edgeItems))
             {
                 newRow[$ - 1] = Frame.truncStr; // overwrite last with truncation string
             }
@@ -203,7 +245,7 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
 
         if (truncate && enoughRows)
         {
-            if (i != Format.edgeitems)
+            if (i != PrettyArrConfig.edgeItems)
                 arrStr ~= addedFrame ~ newRow.join(" ") ~ addedFrame ~ Frame.newline;
             else
                 arrStr ~= addedFrame ~ (cast(string) Frame.truncStr)
@@ -237,8 +279,8 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
 // Check if an array can be truncated.
 private bool canTruncate(T)(T arrSlice)
 {
-    return (arrSlice.flattened.length > Format.threshold) || ((arrSlice.shape.length == 1)
-            && (arrSlice.getStrLength > Format.lineWidth)) ? true : false;
+    return (arrSlice.flattened.length > PrettyArrConfig.threshold) || ((arrSlice.shape.length == 1)
+            && (arrSlice.getStrLength > PrettyArrConfig.lineWidth)) ? true : false;
 }
 
 /++
@@ -311,6 +353,7 @@ unittest
 └                   ┘
 ";
     assert(prettyArr!(typeof(b))(b) == testb);
+
     int[] carr = [
         1000, 21, 1232, 4, 5, 36, 1207, 18, 9, 10, -1, 12, 133, -14, 21915, 16
     ];
@@ -416,17 +459,18 @@ unittest
 ";
     assert(e.prettyArr == teste);
 
-    auto f = [100, 5].iota!int(1).fuse;
-    string testf = "┌                   ┐
-│  1   2   3   4   5│
-│  6   7   8   9  10│
-│ 11  12  13  14  15│
-│░░░░░░░░░░░░░░░░░░░│
-│486 487 488 489 490│
-│491 492 493 494 495│
-│496 497 498 499 500│
-└                   ┘
+    auto f = [210, 5].iota!int(1).fuse;
+    string testf = "┌                        ┐
+│   1    2    3    4    5│
+│   6    7    8    9   10│
+│  11   12   13   14   15│
+│░░░░░░░░░░░░░░░░░░░░░░░░│
+│1036 1037 1038 1039 1040│
+│1041 1042 1043 1044 1045│
+│1046 1047 1048 1049 1050│
+└                        ┘
 ";
+    assert(f.prettyArr == testf);
 
     auto g = [100, 100].iota!int(1).fuse;
     string testg = "┌                                ┐
@@ -439,6 +483,7 @@ unittest
 │9901 9902 9903 ░ 9998 9999 10000│
 └                                ┘
 ";
+    assert(g.prettyArr == testg);
 
     auto h = [500].iota!int(1).fuse;
     string testh = "┌                   ┐
@@ -469,5 +514,37 @@ unittest
 │└                                      ┘│
 └                                        ┘
 ";
+    assert(i.prettyArr == testi);
+
+    auto j = [[1.23, real.nan, 13.44], [real.infinity, real.infinity, -0.412]];
+    PrettyArrConfig.suppressExp = false;
+    string testj = "┌                              ┐
+│1.230000e+00 nan  1.344000e+01│
+│         inf inf -4.120000e-01│
+└                              ┘
+";
+    assert(j.prettyArr == testj);
+
+    auto k = [
+        [0.000023, real.nan, 13.44], [real.infinity, real.infinity, -0.412]
+    ];
+    string testk = "┌                      ┐
+│0.000023 nan 13.440000│
+│     inf inf -0.412000│
+└                      ┘
+";
+    PrettyArrConfig.suppressExp = true;
+    assert(k.prettyArr == testk);
+
+    auto l = [
+        [0.000023, 1.234023, 13.443333], [479.311231, -100.001001, -0.412223]
+    ];
+    string testl = "┌                    ┐
+│  0.00    1.23 13.44│
+│479.31 -100.00 -0.41│
+└                    ┘
+";
+    PrettyArrConfig.precision = 2;
+    assert(l.prettyArr == testl);
 
 }
