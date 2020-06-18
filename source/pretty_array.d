@@ -31,6 +31,7 @@ import std.utf : byCodeUnit;
 import std.typecons : tuple, Tuple;
 import std.traits : isIntegral;
 import mir.ndslice;
+import std.stdio;
 
 /++
 Array formatting configuration:
@@ -111,9 +112,13 @@ private ulong getStrLength(T)(T arrSlice)
 private string toString(T)(T obj)
 {
     import std.format : format;
-    import std.traits : isIntegral;
+    import std.traits : isIntegral, isSomeChar;
 
     if (isIntegral!T)
+    {
+        return obj.to!string;
+    }
+    else if (isSomeChar!T)
     {
         return obj.to!string;
     }
@@ -209,7 +214,6 @@ private string prettyFrame(T)(T arrSlice, bool truncate)
     }
     else
     {
-
         return Frame.vBar ~ arrSlice.map!(a => a.toString).join(" ") ~ Frame.vBar ~ Frame.newline;
     }
 
@@ -283,9 +287,7 @@ private bool canTruncate(T)(T arrSlice)
             && (arrSlice.getStrLength > PrettyArrConfig.lineWidth)) ? true : false;
 }
 
-/++
-Pretty-print D array.
-+/
+/// Pretty-print D array.
 string prettyArr(T)(T arr)
 in
 {
@@ -295,6 +297,7 @@ do
 {
     string arrStr;
     auto arrSlice = arr.fuse; // convert to Mir Slice by GC allocating with fuse
+
     // check if we need array truncation
     const bool truncate = arrSlice.canTruncate;
     auto maxRow = arrSlice.getMaxStrLenAndMaxRow(truncate);
@@ -546,5 +549,15 @@ unittest
 ";
     PrettyArrConfig.precision = 2;
     assert(l.prettyArr == testl);
+
+    auto m = [[['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h']]];
+    string testm = "┌         ┐
+│┌       ┐│
+││a b c d││
+││e f g h││
+│└       ┘│
+└         ┘
+";
+    assert(m.prettyArr == testm);
 
 }

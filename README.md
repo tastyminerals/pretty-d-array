@@ -65,10 +65,64 @@ void main() {
 └                              ┘
 ```
 
+Pretty-printing arrays with strings or chars is also possible.
+
+```d
+auto charArr = [[['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h']]];
+charArr.prettyArr.writeln;
+```
+```
+┌         ┐
+│┌       ┐│
+││a b c d││
+││e f g h││
+│└       ┘│
+└         ┘
+```
+
+```d
+auto strArr = [[["abt", "bat"], ["dac", "eac"]], [["eab", "jua"], ["uia", "vma"]]];
+strArr.prettyArr.writeln;
+```
+```
+┌         ┐
+│┌       ┐│
+││┌     ┐││
+│││a b t│││
+│││b a t│││
+││└     ┘││
+││┌     ┐││
+│││d a c│││
+│││e a c│││
+││└     ┘││
+│└       ┘│
+│┌       ┐│
+││┌     ┐││
+│││e a b│││
+│││j u a│││
+││└     ┘││
+││┌     ┐││
+│││u i a│││
+│││v m a│││
+││└     ┘││
+│└       ┘│
+└         ┘
+```
+
+Standard array does not have `.shape` method like Mir slices.
+Therefore, `pretty_array` additionally provides a naive `getShape` function.
+
+```d
+strArr.getShape.writeln;
+```
+```
+[2, 2, 2, 3]
+```
+
 `prettyArr` also **truncates** big enough arrays to save screen space. You can configure max number of elements allowed before truncation.
 
 ```d
-auto bigArr = [300, 600].iota.int!(1).fuze;
+auto bigArr = [300, 600].iota!int(1).fuse;
 bigArr.prettyArr.writeln;
 ```
 
@@ -88,8 +142,9 @@ Will truncate the array into the following.
 
 `pretty_array` package contains
 
-* `prettyArr` -- a function that converts an array into a pretty string.
+* `prettyArr` -- converts an array into a pretty string.
 * `PrettyArrConfig` -- array formatting configuration.
+* `getShape` -- returns a shape of standard D array.
 
 ## Formatting Configuration
 
