@@ -1,6 +1,6 @@
 # pretty\_d\_array
 
-Pretty printing multidimensional D arrays.
+[Pretty-printing multidimensional D arrays](https://tastyminerals.github.io/tasty-blog/dlang/2020/06/25/pretty_printing_arrays.html).
 
 This small package uses awesome [mir-algorithm](https://github.com/libmir/mir-algorithm) library as a dependency.
 
