@@ -1,7 +1,7 @@
 name "pretty_array"
 description "Pretty D Arrays"
 authors "tastyminerals"
-dependency "mir-algorithm" version="~>3.9.2"
+dependency "mir-algorithm" version=">=3.9.2"
 license "MIT"
 
 targetType "library"
