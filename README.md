@@ -14,26 +14,24 @@ Simply put, it is a small dub package that turns your D arrays from this:
 into this
 
 ```
-┌                                 ┐
-│┌                               ┐│
-││  1   2   3   4   5   6   7   8││
-││  9  10  11  12  13  14  15  16││
-││ 17  18  19  20  21  22  23  24││
-││ 25  26  27  28  29  30  31  32││
-││ 33  34  35  36  37  38  39  40││
-││ 41  42  43  44  45  46  47  48││
-││ 49  50  51  52  53  54  55  56││
-│└                               ┘│
-│┌                               ┐│
-││ 57  58  59  60  61  62  63  64││
-││ 65  66  67  68  69  70  71  72││
-││ 73  74  75  76  77  78  79  80││
-││ 81  82  83  84  85  86  87  88││
-││ 89  90  91  92  93  94  95  96││
-││ 97  98  99 100 101 102 103 104││
-││105 106 107 108 109 110 111 112││
-│└                               ┘│
-└                                 ┘
+┌                               ┐
+│  1   2   3   4   5   6   7   8│
+│  9  10  11  12  13  14  15  16│
+│ 17  18  19  20  21  22  23  24│
+│ 25  26  27  28  29  30  31  32│
+│ 33  34  35  36  37  38  39  40│
+│ 41  42  43  44  45  46  47  48│
+│ 49  50  51  52  53  54  55  56│
+└                               ┘
+┌                               ┐
+│ 57  58  59  60  61  62  63  64│
+│ 65  66  67  68  69  70  71  72│
+│ 73  74  75  76  77  78  79  80│
+│ 81  82  83  84  85  86  87  88│
+│ 89  90  91  92  93  94  95  96│
+│ 97  98  99 100 101 102 103 104│
+│105 106 107 108 109 110 111 112│
+└                               ┘
 ```
 
 I think it's much easier to reason about array structure using such simplified form.
@@ -53,16 +51,14 @@ void main() {
 ```
 
 ```
-┌                              ┐
-│┌                            ┐│
-││10.4 200.14  -40.203 0.00523││
-││   5   2.56   39.901   56.12││
-│└                            ┘│
-│┌                            ┐│
-││ 2.5    1.2 -0.22103   89091││
-││   3      5        1       0││
-│└                            ┘│
-└                              ┘
+┌                            ┐
+│10.4 200.14  -40.203 0.00523│
+│   5   2.56   39.901   56.12│
+└                            ┘
+┌                            ┐
+│ 2.5    1.2 -0.22103   89091│
+│   3      5        1       0│
+└                            ┘
 ```
 
 Pretty-printing arrays with strings or chars is also possible.
@@ -72,12 +68,10 @@ auto charArr = [[['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h']]];
 charArr.prettyArr.writeln;
 ```
 ```
-┌         ┐
-│┌       ┐│
-││a b c d││
-││e f g h││
-│└       ┘│
-└         ┘
+┌       ┐
+│a b c d│
+│e f g h│
+└       ┘
 ```
 
 ```d
@@ -85,28 +79,26 @@ auto strArr = [[["abt", "bat"], ["dac", "eac"]], [["eab", "jua"], ["uia", "vma"]
 strArr.prettyArr.writeln;
 ```
 ```
-┌         ┐
-│┌       ┐│
-││┌     ┐││
-│││a b t│││
-│││b a t│││
-││└     ┘││
-││┌     ┐││
-│││d a c│││
-│││e a c│││
-││└     ┘││
-│└       ┘│
-│┌       ┐│
-││┌     ┐││
-│││e a b│││
-│││j u a│││
-││└     ┘││
-││┌     ┐││
-│││u i a│││
-│││v m a│││
-││└     ┘││
-│└       ┘│
-└         ┘
+┌       ┐
+│┌     ┐│
+││a b t││
+││b a t││
+│└     ┘│
+│┌     ┐│
+││d a c││
+││e a c││
+│└     ┘│
+└       ┘
+┌       ┐
+│┌     ┐│
+││e a b││
+││j u a││
+│└     ┘│
+│┌     ┐│
+││u i a││
+││v m a││
+│└     ┘│
+└       ┘
 ```
 
 Standard array does not have `.shape` method like Mir slices.
@@ -203,9 +195,24 @@ private enum Frame : string
     rbAngle = "┘",
     vBar = "│",
     newline = "\n",
+    whitespace = " ",
     dash = "─",
+    empty = "",
     dot = "·",
-    space = " ",
     truncStr = "░" // TIP: length of this string is 3!
 }
+```
+
+### Building & Testing
+
+You'll need a D compiler (ldc, dmd, gdc) and dub.
+
+Build a library
+```
+dub build
+```
+
+Test a library
+```
+dub test
 ```

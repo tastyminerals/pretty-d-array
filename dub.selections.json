@@ -1,7 +1,9 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"mir-algorithm": "3.9.2",
-		"mir-core": "1.1.7"
+		"mir-algorithm": "3.12.35",
+		"mir-core": "1.1.104",
+		"mir-linux-kernel": "1.2.1",
+		"mir-random": "2.2.19"
 	}
 }

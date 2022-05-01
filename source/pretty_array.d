@@ -41,16 +41,15 @@ Array formatting configuration:
     precision -- precision of floating point representations (defaults to 6)
     suppressExp -- suppress scientific notation (defaults to true)
     threshold -- max array size allowed without truncation (defaults to 1000 elements)
-
 +/
 class PrettyArrConfig
 {
-    static:
-        int edgeItems = 3;
-        int lineWidth = 120;
-        int precision = 6;
-        bool suppressExp = true;
-        int threshold = 1000;
+static:
+    int edgeItems = 3;
+    int lineWidth = 120;
+    int precision = 6;
+    bool suppressExp = true;
+    int threshold = 1000;
 }
 
 private enum Frame : string
@@ -61,9 +60,10 @@ private enum Frame : string
     rbAngle = "┘",
     vBar = "│",
     newline = "\n",
+    whitespace = " ",
     dash = "─",
+    empty = "",
     dot = "·",
-    space = " ",
     truncStr = "░" // TIP: length of this string is 3!
 }
 
@@ -78,19 +78,18 @@ ulong[] getShape(T : double)(T obj, ulong[] dims = null)
 }
 
 /++
-Get the shape of a plain D array.
-A standalone convenience function for getting array shape without converting to Mir Slices.
-The array must have correct dimensions otherwise the column index will not be consistent.
+    Get the shape of a plain D array.
+    A standalone convenience function for getting array shape without converting to Mir Slices.
+    The array must have correct dimensions otherwise the column index will not be consistent.
+    In case of a "jagged" D array, the min column index will be displayed.
 +/
 ulong[] getShape(T)(T obj, ulong[] dims = null)
-in
 {
     import std.traits : isArray;
+    import std.exception : enforce;
 
-    assert(isArray!(typeof(obj)));
-}
-do
-{
+    enforce(isArray!(typeof(obj)), "Provided object is not plain D array!");
+
     dims ~= obj.length.to!int;
     return getShape!(typeof(obj[0]))(obj[0], dims);
 }
@@ -137,9 +136,9 @@ private ulong convertTruncIdx(ulong idx, ulong truncLen, ulong rowLen)
 }
 
 /++
-Get the longest string length of a row, construct a row with the longest string elements.
-We need to know the longest string length of the row to calculate the correct padding between the frames.
-We need to keep the row with longest string elements to correctly right-align all array elements.
+    Get the longest string length of a row, construct a row with the longest string elements.
+    We need to know the longest string length of the row to calculate the correct padding between the frames.
+    We need to keep the row with longest string elements to correctly right-align all array elements.
 +/
 private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrSlice, bool truncate)
 {
@@ -165,7 +164,7 @@ private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrS
     {
         rowi = truncate && enoughRows ? convertTruncIdx(i, truncLen, slice2D.shape[0]) : i;
         for (ulong j; j < (truncate && encoughCols ? truncLen : slice2D[rowi].length);
-                j++)
+            j++)
         {
             colj = truncate && encoughCols ? convertTruncIdx(j, truncLen, slice2D[i].length) : j;
             row[j] = slice2D[rowi][colj].toString;
@@ -187,10 +186,10 @@ private Tuple!(ulong, "strlen", string[], "row") getMaxStrLenAndMaxRow(T)(T arrS
 }
 
 /++
-Construct the padding between frame angles.
-Use white space if padding string is not provided.
+    Construct the padding between frame angles.
+    Use white space if padding string is not provided.
 +/
-private string getPadding(T)(T arrShape, ulong maxStrRowLen, string padStr = Frame.space)
+private string getPadding(T)(T arrShape, ulong maxStrRowLen, string padStr = Frame.whitespace)
 {
     return padStr.byCodeUnit.repeat((arrShape.length < 2
             ? 0 : arrShape.length - 2) * 2 + maxStrRowLen).join;
@@ -201,6 +200,9 @@ private ulong lenDiff()(string a, string b)
     return a.length > b.length ? a.length - b.length : 0;
 }
 
+/++
+    Build 1D array elements.
++/
 private string prettyFrame(T)(T arrSlice, bool truncate)
         if (arrSlice.shape.length == 1)
 {
@@ -208,7 +210,7 @@ private string prettyFrame(T)(T arrSlice, bool truncate)
     {
         string[] leftSlice = arrSlice[0 .. PrettyArrConfig.edgeItems].map!(a => a.toString).array;
         string[] rightSlice = arrSlice[$ - PrettyArrConfig.edgeItems .. $].map!(
-                a => a.toString).array;
+            a => a.toString).array;
         return Frame.vBar ~ (leftSlice ~ Frame.truncStr ~ rightSlice)
             .join(" ") ~ Frame.vBar ~ Frame.newline;
     }
@@ -219,6 +221,12 @@ private string prettyFrame(T)(T arrSlice, bool truncate)
 
 }
 
+/++
+    Build 2D matrix elements by iterating over rows and columns.
+    "addedFrame" represents accumulated string that comes before each matrix row.
+    For example, if we deal with 1D/2D matrix, "addedFrame" contains "|", otherwise it
+    can contain "|||" strings accumulated by the recursive "prettyFrame" template.
++/
 private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
         "strlen", string[], "row") maxRow, bool truncate)
         if (arrSlice.shape.length == 2)
@@ -234,7 +242,7 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
         string[] newRow;
         rowi = truncate && enoughRows ? convertTruncIdx(i, truncLen, arrSlice.length) : i;
         for (ulong j; j < (truncate && enoughCols ? truncLen : arrSlice[rowi].length);
-                j++)
+            j++)
         {
             colj = truncate && enoughCols ? convertTruncIdx(j, truncLen, arrSlice[i].length) : j;
             // insert white spaces before the element to right align it
@@ -260,9 +268,14 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
             arrStr ~= addedFrame ~ newRow.join(" ") ~ addedFrame ~ Frame.newline;
         }
     }
+
     return arrStr;
 }
 
+/++ 
+    Recursive template that constructs the outer frame for a multidimensional array.
+    The outer frame does not include the closing frame header and footer.
++/
 private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
         "strlen", string[], "row") maxRow, bool truncate)
         if (arrSlice.shape.length > 2)
@@ -273,7 +286,7 @@ private string prettyFrame(T)(T arrSlice, string addedFrame, Tuple!(ulong,
         string padding = getPadding!(typeof(arrSlice[i].shape))(arrSlice[i].shape, maxRow.strlen);
         arrStr ~= addedFrame ~ Frame.ltAngle ~ padding ~ Frame.rtAngle ~ addedFrame ~ Frame.newline;
         arrStr ~= prettyFrame!(typeof(arrSlice[i]))(arrSlice[i],
-                addedFrame ~ Frame.vBar, maxRow, truncate);
+            addedFrame ~ Frame.vBar, maxRow, truncate);
         arrStr ~= addedFrame ~ Frame.lbAngle ~ padding ~ Frame.rbAngle ~ addedFrame ~ Frame.newline;
     }
 
@@ -287,7 +300,15 @@ private bool canTruncate(T)(T arrSlice)
             && (arrSlice.getStrLength > PrettyArrConfig.lineWidth)) ? true : false;
 }
 
-/// Pretty-print D array.
+/++ 
+    Pretty-print D array.
+    The function starts from getting the shape of the multidimensional array.
+    It then adds the closing header and footer frame and depending on its shape 1D/2D or >2D,
+    calls one of the three "prettyFrame" templates.
+    The template that runs on >2D arrays is recursive. It constructs the vertical outer frames first, 
+    dimension by dimension until the array becomes 1D or 2D. Afterwards the corresponding
+    overloaded template is called to consturct the actual array elements. 
++/
 string prettyArr(T)(T arr)
 in
 {
@@ -302,24 +323,43 @@ do
     const bool truncate = arrSlice.canTruncate;
     auto maxRow = arrSlice.getMaxStrLenAndMaxRow(truncate);
     string padding = getPadding!(typeof(arrSlice.shape))(arrSlice.shape, maxRow.strlen);
-    arrStr ~= Frame.ltAngle ~ padding ~ Frame.rtAngle ~ Frame.newline;
-    static if (arrSlice.shape.length > 1)
+
+    static if (arrSlice.shape.length == 2)
     {
+        arrStr ~= Frame.ltAngle ~ padding ~ Frame.rtAngle ~ Frame.newline;
         arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, Frame.vBar, maxRow, truncate);
+        arrStr ~= Frame.lbAngle ~ padding ~ Frame.rbAngle ~ Frame.newline;
+    }
+    else static if (arrSlice.shape.length > 1)
+    {
+        arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, Frame.empty, maxRow, truncate);
     }
     else
     {
+        arrStr ~= Frame.ltAngle ~ padding ~ Frame.rtAngle ~ Frame.newline;
         arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, truncate);
+        arrStr ~= Frame.lbAngle ~ padding ~ Frame.rbAngle ~ Frame.newline;
     }
-    arrStr ~= Frame.lbAngle ~ padding ~ Frame.rbAngle ~ Frame.newline;
+
     return arrStr;
 }
 
 unittest
 {
     import std.range : chunks;
+    import std.exception : assertThrown;
 
-    // TODO: getShape tests
+    int[] da0 = [1, 2, 3, 4, 5];
+    assert(da0.getShape == [5]);
+
+    int[][] da1 = [[1, 0, 1], [-1, 0, 2]];
+    assert(da1.getShape == [2, 3]);
+
+    int[][][] da2 = [[[1, 2, 3], [4, 5, 6]], [[1, 1, 2], [3, 1, 1]]];
+    assert(da2.getShape == [2, 2, 3]);
+
+    auto ma0 = [3, 2].iota!int(1).fuse;
+    assertThrown(ma0.getShape);
 
     int[] a0 = [200, 1, -3, 0, 0, 8501, 23];
     string testa0 = "┌                    ┐
@@ -344,16 +384,14 @@ unittest
     auto b = [2, 2, 6].iota!int(1).fuse;
     auto maxb = b.getMaxStrLenAndMaxRow(b.canTruncate);
     assert(getPadding!(typeof(b.shape))(b.shape, maxb.strlen).length == 19);
-    string testb = "┌                   ┐
-│┌                 ┐│
-││ 1  2  3  4  5  6││
-││ 7  8  9 10 11 12││
-│└                 ┘│
-│┌                 ┐│
-││13 14 15 16 17 18││
-││19 20 21 22 23 24││
-│└                 ┘│
-└                   ┘
+    string testb = "┌                 ┐
+│ 1  2  3  4  5  6│
+│ 7  8  9 10 11 12│
+└                 ┘
+┌                 ┐
+│13 14 15 16 17 18│
+│19 20 21 22 23 24│
+└                 ┘
 ";
     assert(prettyArr!(typeof(b))(b) == testb);
 
@@ -361,105 +399,100 @@ unittest
         1000, 21, 1232, 4, 5, 36, 1207, 18, 9, 10, -1, 12, 133, -14, 21915, 16
     ];
     auto c = carr.chunks(2).array.chunks(4).array.chunks(2).array; // jagged D array
-    string testc = "┌             ┐
-│┌           ┐│
-││┌         ┐││
-│││ 1000  21│││
-│││ 1232   4│││
-│││    5  36│││
-│││ 1207  18│││
-││└         ┘││
-││┌         ┐││
-│││    9  10│││
-│││   -1  12│││
-│││  133 -14│││
-│││21915  16│││
-││└         ┘││
-│└           ┘│
-└             ┘
+    string testc = "┌           ┐
+│┌         ┐│
+││ 1000  21││
+││ 1232   4││
+││    5  36││
+││ 1207  18││
+│└         ┘│
+│┌         ┐│
+││    9  10││
+││   -1  12││
+││  133 -14││
+││21915  16││
+│└         ┘│
+└           ┘
 ";
     assert(prettyArr!(typeof(c))(c) == testc);
 
     auto d = [3, 1, 2, 1].iota!int(1).fuse;
-    string testd = "┌     ┐
-│┌   ┐│
-││┌ ┐││
-│││1│││
-│││2│││
-││└ ┘││
-│└   ┘│
-│┌   ┐│
-││┌ ┐││
-│││3│││
-│││4│││
-││└ ┘││
-│└   ┘│
-│┌   ┐│
-││┌ ┐││
-│││5│││
-│││6│││
-││└ ┘││
-│└   ┘│
-└     ┘
+    string testd = "┌   ┐
+│┌ ┐│
+││1││
+││2││
+│└ ┘│
+└   ┘
+┌   ┐
+│┌ ┐│
+││3││
+││4││
+│└ ┘│
+└   ┘
+┌   ┐
+│┌ ┐│
+││5││
+││6││
+│└ ┘│
+└   ┘
 ";
     assert(prettyArr!(typeof(d))(d) == testd);
 
     auto e = [2, 3, 6, 6].iota!int(1).fuse;
-    string teste = "┌                           ┐
-│┌                         ┐│
-││┌                       ┐││
-│││  1   2   3   4   5   6│││
-│││  7   8   9  10  11  12│││
-│││ 13  14  15  16  17  18│││
-│││ 19  20  21  22  23  24│││
-│││ 25  26  27  28  29  30│││
-│││ 31  32  33  34  35  36│││
-││└                       ┘││
-││┌                       ┐││
-│││ 37  38  39  40  41  42│││
-│││ 43  44  45  46  47  48│││
-│││ 49  50  51  52  53  54│││
-│││ 55  56  57  58  59  60│││
-│││ 61  62  63  64  65  66│││
-│││ 67  68  69  70  71  72│││
-││└                       ┘││
-││┌                       ┐││
-│││ 73  74  75  76  77  78│││
-│││ 79  80  81  82  83  84│││
-│││ 85  86  87  88  89  90│││
-│││ 91  92  93  94  95  96│││
-│││ 97  98  99 100 101 102│││
-│││103 104 105 106 107 108│││
-││└                       ┘││
-│└                         ┘│
-│┌                         ┐│
-││┌                       ┐││
-│││109 110 111 112 113 114│││
-│││115 116 117 118 119 120│││
-│││121 122 123 124 125 126│││
-│││127 128 129 130 131 132│││
-│││133 134 135 136 137 138│││
-│││139 140 141 142 143 144│││
-││└                       ┘││
-││┌                       ┐││
-│││145 146 147 148 149 150│││
-│││151 152 153 154 155 156│││
-│││157 158 159 160 161 162│││
-│││163 164 165 166 167 168│││
-│││169 170 171 172 173 174│││
-│││175 176 177 178 179 180│││
-││└                       ┘││
-││┌                       ┐││
-│││181 182 183 184 185 186│││
-│││187 188 189 190 191 192│││
-│││193 194 195 196 197 198│││
-│││199 200 201 202 203 204│││
-│││205 206 207 208 209 210│││
-│││211 212 213 214 215 216│││
-││└                       ┘││
-│└                         ┘│
-└                           ┘
+    string teste = "┌                         ┐
+│┌                       ┐│
+││  1   2   3   4   5   6││
+││  7   8   9  10  11  12││
+││ 13  14  15  16  17  18││
+││ 19  20  21  22  23  24││
+││ 25  26  27  28  29  30││
+││ 31  32  33  34  35  36││
+│└                       ┘│
+│┌                       ┐│
+││ 37  38  39  40  41  42││
+││ 43  44  45  46  47  48││
+││ 49  50  51  52  53  54││
+││ 55  56  57  58  59  60││
+││ 61  62  63  64  65  66││
+││ 67  68  69  70  71  72││
+│└                       ┘│
+│┌                       ┐│
+││ 73  74  75  76  77  78││
+││ 79  80  81  82  83  84││
+││ 85  86  87  88  89  90││
+││ 91  92  93  94  95  96││
+││ 97  98  99 100 101 102││
+││103 104 105 106 107 108││
+│└                       ┘│
+└                         ┘
+┌                         ┐
+│┌                       ┐│
+││109 110 111 112 113 114││
+││115 116 117 118 119 120││
+││121 122 123 124 125 126││
+││127 128 129 130 131 132││
+││133 134 135 136 137 138││
+││139 140 141 142 143 144││
+│└                       ┘│
+│┌                       ┐│
+││145 146 147 148 149 150││
+││151 152 153 154 155 156││
+││157 158 159 160 161 162││
+││163 164 165 166 167 168││
+││169 170 171 172 173 174││
+││175 176 177 178 179 180││
+│└                       ┘│
+│┌                       ┐│
+││181 182 183 184 185 186││
+││187 188 189 190 191 192││
+││193 194 195 196 197 198││
+││199 200 201 202 203 204││
+││205 206 207 208 209 210││
+││211 212 213 214 215 216││
+│└                       ┘│
+└                         ┘
 ";
+
     assert(e.prettyArr == teste);
 
     auto f = [210, 5].iota!int(1).fuse;
@@ -496,26 +529,24 @@ unittest
     assert(h.prettyArr == testh);
 
     auto i = [2, 100, 500].iota!int(1).fuse;
-    string testi = "┌                                        ┐
-│┌                                      ┐│
-││    1     2     3 ░   498   499    500││
-││  501   502   503 ░   998   999   1000││
-││ 1001  1002  1003 ░  1498  1499   1500││
-││░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░││
-││48501 48502 48503 ░ 48998 48999  49000││
-││49001 49002 49003 ░ 49498 49499  49500││
-││49501 49502 49503 ░ 49998 49999  50000││
-│└                                      ┘│
-│┌                                      ┐│
-││50001 50002 50003 ░ 50498 50499  50500││
-││50501 50502 50503 ░ 50998 50999  51000││
-││51001 51002 51003 ░ 51498 51499  51500││
-││░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░││
-││98501 98502 98503 ░ 98998 98999  99000││
-││99001 99002 99003 ░ 99498 99499  99500││
-││99501 99502 99503 ░ 99998 99999 100000││
-│└                                      ┘│
-└                                        ┘
+    string testi = "┌                                      ┐
+│    1     2     3 ░   498   499    500│
+│  501   502   503 ░   998   999   1000│
+│ 1001  1002  1003 ░  1498  1499   1500│
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+│48501 48502 48503 ░ 48998 48999  49000│
+│49001 49002 49003 ░ 49498 49499  49500│
+│49501 49502 49503 ░ 49998 49999  50000│
+└                                      ┘
+┌                                      ┐
+│50001 50002 50003 ░ 50498 50499  50500│
+│50501 50502 50503 ░ 50998 50999  51000│
+│51001 51002 51003 ░ 51498 51499  51500│
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+│98501 98502 98503 ░ 98998 98999  99000│
+│99001 99002 99003 ░ 99498 99499  99500│
+│99501 99502 99503 ░ 99998 99999 100000│
+└                                      ┘
 ";
     assert(i.prettyArr == testi);
 
@@ -551,12 +582,10 @@ unittest
     assert(l.prettyArr == testl);
 
     auto m = [[['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h']]];
-    string testm = "┌         ┐
-│┌       ┐│
-││a b c d││
-││e f g h││
-│└       ┘│
-└         ┘
+    string testm = "┌       ┐
+│a b c d│
+│e f g h│
+└       ┘
 ";
     assert(m.prettyArr == testm);
 
