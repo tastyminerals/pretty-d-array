@@ -36,11 +36,12 @@ import std.stdio;
 /++
 Array formatting configuration:
 
-    edgeItems -- number of items preceding and following the truncation symbol (defaults to 3)
-    lineWidth -- max line width allowed without truncation (defaults to 120)
-    precision -- precision of floating point representations (defaults to 6)
+    edgeItems   -- number of items preceding and following the truncation symbol (defaults to 3)
+    lineWidth   -- max line width allowed without truncation (defaults to 120)
+    precision   -- precision of floating point representations (defaults to 6)
     suppressExp -- suppress scientific notation (defaults to true)
-    threshold -- max array size allowed without truncation (defaults to 1000 elements)
+    threshold   -- max array size allowed without truncation (defaults to 1000 elements)
+    withShape   -- additionally display array shape 
 +/
 class PrettyArrConfig
 {
@@ -50,6 +51,7 @@ static:
     int precision = 6;
     bool suppressExp = true;
     int threshold = 1000;
+    bool withShape = false;
 }
 
 private enum Frame : string
@@ -300,6 +302,11 @@ private bool canTruncate(T)(T arrSlice)
             && (arrSlice.getStrLength > PrettyArrConfig.lineWidth)) ? true : false;
 }
 
+private string toStringShape(T)(T arrSlice)
+{
+    return "[" ~ arrSlice.shape.map!(a => a.toString).join(" x ") ~ "]\n";
+}
+
 /++ 
     Pretty-print D array.
     The function starts from getting the shape of the multidimensional array.
@@ -339,6 +346,11 @@ do
         arrStr ~= Frame.ltAngle ~ padding ~ Frame.rtAngle ~ Frame.newline;
         arrStr ~= prettyFrame!(typeof(arrSlice))(arrSlice, truncate);
         arrStr ~= Frame.lbAngle ~ padding ~ Frame.rbAngle ~ Frame.newline;
+    }
+
+    if (PrettyArrConfig.withShape)
+    {
+        arrStr ~= arrSlice.toStringShape;
     }
 
     return arrStr;
@@ -589,4 +601,12 @@ unittest
 ";
     assert(m.prettyArr == testm);
 
+    PrettyArrConfig.withShape = true;
+    string testmWithShape = "┌       ┐
+│a b c d│
+│e f g h│
+└       ┘
+[1 x 2 x 4]
+";
+    assert(m.prettyArr == testmWithShape);
 }
