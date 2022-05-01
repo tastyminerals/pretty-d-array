@@ -147,6 +147,7 @@ You can configure some of the default formatting parameters via `PrettyArrConfig
 * `precision` -- precision of floating point representations (defaults to 6).
 * `suppressExp` -- suppress scientific notation (defaults to true).
 * `threshold` -- max array size allowed without truncation (default is 1000 elements).
+* `withShape` -- additionally display array shape.
 
 Here are couple of usage examples.
 
@@ -170,6 +171,7 @@ You can also enable **scientific notation** via _e_ suffix.
 ```d
 auto a = [[0.000023, 1.234023, 13.443333], [479.311231, -100.001001, -0.412223]];
 PrettyArrConfig.suppressExp = false;
+PrettyArrConfig.withShape = true;
 a.prettyArr.writeln;
 ```
 
@@ -178,6 +180,7 @@ a.prettyArr.writeln;
 │2.300000e-05  1.234023e+00  1.344333e+01│
 │4.793112e+02 -1.000010e+02 -4.122230e-01│
 └                                        ┘
+[2 x 3]
 ```
 
 ### Configuring Special Symbols
