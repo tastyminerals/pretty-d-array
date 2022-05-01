@@ -1,7 +1,7 @@
 name "pretty_array"
 description "Pretty D Arrays"
 authors "tastyminerals"
-dependency "mir-algorithm" version="~>3.9.2"
+copyright "Copyright © 2020, tastyminerals"
 license "MIT"
 
 targetType "library"
@@ -23,3 +23,6 @@ buildType "debug-profile" {
 buildType "tests" {
     buildOptions "unittests"
 }
+
+dependency "mir-random" version="~>2.2.19"
+dependency "mir-algorithm" version="~>3.12"
